@@ -25,9 +25,10 @@ with st.sidebar:
         st.rerun()
 
 if not api_key:
-    st.warning("👈 左側のメニューにAPIキーを入力するとアナリストが起動します。")
+    st.warning("👈 左側のメニューに新しく作成したAPIキーを入力するとアナリストが起動します。")
     st.stop()
 
+# 空白スペースなどが混じっていた場合のエラーを防ぐ処理
 genai.configure(api_key=api_key.strip())
 
 # --- アナリストの設定 ---
@@ -43,9 +44,9 @@ system_instruction = """
 - 無駄な挨拶は省き、すぐに本題に入る。
 """
 
-# 💡 修正箇所：エラーの指示通り、最新のモデルを直接指定
+# 💡 修正箇所：最高性能の「gemini-1.5-pro」を指定
 model = genai.GenerativeModel(
-    model_name="gemini-3.6-flash",
+    model_name="gemini-1.5-pro",
     system_instruction=system_instruction
 )
 
@@ -84,7 +85,7 @@ if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
     
     with st.chat_message("assistant"):
-        with st.spinner("データ分析中..."):
+        with st.spinner("データ分析中... [Gemini 1.5 Pro]"):
             try:
                 content_to_send = [prompt]
                 
