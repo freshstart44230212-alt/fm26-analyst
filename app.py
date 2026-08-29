@@ -43,8 +43,9 @@ system_instruction = """
 - 無駄な挨拶は省き、すぐに本題に入る。
 """
 
+# エラー修正箇所：gemini-1.5-pro-latest を指定
 model = genai.GenerativeModel(
-    model_name="gemini-1.5-pro",
+    model_name="gemini-1.5-pro-latest",
     system_instruction=system_instruction,
     generation_config={"temperature": 0.4}
 )
