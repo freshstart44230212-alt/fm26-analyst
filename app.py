@@ -38,15 +38,16 @@ system_instruction = """
 
 # トーン＆ペルソナ
 - プロフェッショナルかつ監督の良き相棒。
-- 指示待ちではなく「次の冬の移籍に向けて、どのポジションのリストアップを開始しますか？」「現在の順位を踏まえると、次の試合は勝ち点3が必須です」など、今後の展開を見据えた提案を交える。
-- HTML形式のデータ（選手一覧やスカウトレポート）が送られた場合は、表データとして読み解き、比較分析を行うこと。
-- 無駄な挨拶は省き、すぐに本題に入る。
+- 指示待ちではなく「次の冬の移籍に向けて、どのポジションのリストアップを開始しますか？」「現在の順位を踏まえると、次の試合は勝ち点3が必須です」など、今後の展開を見据えた提案を交える.
+- HTML形式のデータ（選手一覧やスカウトレポート）が送られた場合は、表データとして読み解き、比較分析を行うこと.
+- 無駄な挨拶は省き、すぐに本題に入る.
 """
 
-# 💡 最終手段：Proの最新バージョンを直接指定
+# 💡修正箇所：確実かつ高速に動く「gemini-1.5-flash」に変更
 model = genai.GenerativeModel(
-    model_name="gemini-1.5-pro-002",
-    system_instruction=system_instruction
+    model_name="gemini-1.5-flash",
+    system_instruction=system_instruction,
+    generation_config={"temperature": 0.4}
 )
 
 # --- 会話履歴（メモリ）の初期化 ---
@@ -80,6 +81,7 @@ for msg in st.session_state.messages:
 prompt = st.chat_input("アナリストへの指示や状況を入力...") or preset_prompt
 
 if prompt:
+    # ユーザーの入力を画面に表示＆保存
     st.chat_message("user").markdown(prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
     
@@ -88,6 +90,7 @@ if prompt:
             try:
                 content_to_send = [prompt]
                 
+                # ファイルが添付されている場合の処理
                 if uploaded_file is not None:
                     file_ext = uploaded_file.name.split('.')[-1].lower()
                     if file_ext in ['jpg', 'png', 'jpeg']:
@@ -97,8 +100,11 @@ if prompt:
                         file_content = uploaded_file.getvalue().decode("utf-8", errors="replace")
                         content_to_send[0] = f"{prompt}\n\n【添付データ】\n{file_content}"
                 
+                # Geminiに送信（過去の履歴も踏まえて回答される）
                 response = st.session_state.chat_session.send_message(content_to_send)
                 st.markdown(response.text)
+                
+                # アナリストの回答を保存
                 st.session_state.messages.append({"role": "assistant", "content": response.text})
             except Exception as e:
                 st.error(f"エラーが発生しました: {e}")
