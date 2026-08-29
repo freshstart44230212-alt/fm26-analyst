@@ -6,21 +6,23 @@ import os
 # --- 画面の設定 ---
 st.set_page_config(page_title="高知SC アナリスト室", page_icon="⚽", layout="wide")
 st.title("⚽ 高知SC 専用アナリスト室")
-st.write("FM26の戦術相談や、スカウトした選手の能力画面（スクショ）を送ってください。")
+st.write("リーグ順位、今後の補強計画、HTMLでのスカッド共有など、何でも相談してください。")
 
 # --- APIキーと状況表示（サイドバー） ---
 with st.sidebar:
     st.header("⚙️ システム設定")
     api_key = st.text_input("Gemini APIキー", type="password")
-    st.write("※取得した `AIzaSy...` を貼り付けてください")
     
     st.markdown("---")
     st.subheader("📋 現在のフォーメーション")
-    # GitHubにアップロードした tactics.jpg を表示
     if os.path.exists("tactics.jpg"):
         st.image("tactics.jpg", caption="4-2-3-1 ワイド (流動型カウンター)", use_column_width=True)
-    else:
-        st.info("💡 GitHubに `tactics.jpg` をアップロードすると、ここに陣形図が表示されます。")
+    
+    # チャットリセットボタン
+    if st.button("🗑️ 会話履歴をクリア"):
+        st.session_state.messages = []
+        st.session_state.chat_session = None
+        st.rerun()
 
 if not api_key:
     st.warning("👈 左側のメニューにAPIキーを入力するとアナリストが起動します。")
@@ -28,64 +30,80 @@ if not api_key:
 
 genai.configure(api_key=api_key)
 
-# --- アナリストの設定（System Instructions） ---
+# --- アナリストの設定 ---
 system_instruction = """
 # 役割定義
-あなたはサッカーシミュレーションゲーム『Football Manager』において、監督（ユーザー）を支える「高知SCの専属チーフアナリスト」です。
-鋭いデータ分析、戦術的視点、そして監督への深いリスペクトを併せ持ち、J1自動昇格に向けた客観的かつ情熱的なスカウティング・チーム分析を行います。
+あなたは『Football Manager』における「高知SCの専属チーフアナリスト」です。
+監督（ユーザー）と継続的に対話しながら、リーグ順位、今後の補強計画、戦術の微調整を共に考えます。
 
 # トーン＆ペルソナ
-- プロフェッショナルでありながら、監督の良き相棒としての温かみと客観的で素直なアドバイスを持つ。
-- 抽象的な表現は避け、具体的な能力値の数値やFMのシステム仕様に基づいた根拠を提示する。
-- 回答の冒頭で無駄な前置きや挨拶は一切行わず、1文目から直接コンテンツに入る。
-- 文末にまとめのラベリングを設置せず、自然な段落で終える。
-
-# クラブの基本文脈・引き継ぎデータ（高知SC）
-- 所属・状況: J2リーグ 3位。2029年1月下旬（冬移籍ウィンドウ）。
-- 採用戦術: 「積極的 4-2-3-1 ワイド・カスタム 流動型カウンター攻撃」
-- 課題: 前線の主軸が離脱中。マルチアタッカー1名をレンタルで急遽獲得すること。
-
-# 選手査定・データ分析の原則
-1. 戦術的貢献度
-2. 最大の懸念点・リスク
-3. 最終判定（獲得/見送り）
-4. 相方の推奨タイプ
+- プロフェッショナルかつ監督の良き相棒。
+- 指示待ちではなく「次の冬の移籍に向けて、どのポジションのリストアップを開始しますか？」「現在の順位を踏まえると、次の試合は勝ち点3が必須です」など、今後の展開を見据えた提案を交える。
+- HTML形式のデータ（選手一覧やスカウトレポート）が送られた場合は、表データとして読み解き、比較分析を行うこと。
+- 無駄な挨拶は省き、すぐに本題に入る。
 """
 
-# Gemini 1.5 Proの設定
 model = genai.GenerativeModel(
     model_name="gemini-1.5-pro",
     system_instruction=system_instruction,
-    generation_config={"temperature": 0.3}
+    generation_config={"temperature": 0.4}
 )
+
+# --- 会話履歴（メモリ）の初期化 ---
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "chat_session" not in st.session_state or st.session_state.chat_session is None:
+    st.session_state.chat_session = model.start_chat(history=[])
 
 # --- クイックアクション（ボタン） ---
 st.write("📌 **クイックアクション**")
 col1, col2, col3 = st.columns(3)
 preset_prompt = None
-if col1.button("🔍 スカウトレポート分析"):
-    preset_prompt = "添付した画像（スカウトレポート等）を分析し、高知SCの現在の戦術に適合するか、獲得すべきか詳細に評価してください。"
-if col2.button("🛡️ 戦術診断"):
-    preset_prompt = "現在の戦術とフォーメーションにおける弱点や、改善すべき役割（ロール）の指示について診断してください。"
-if col3.button("👤 選手査定"):
-    preset_prompt = "添付した選手の能力値を査定し、現在の4-2-3-1のどこで起用するのがベストか、獲得・起用の是非を判定してください。"
+if col1.button("📊 状況共有・作戦会議"):
+    preset_prompt = "現在のリーグ順位や直近のチーム課題を共有します。今後の補強や方針について相談に乗ってください。"
+if col2.button("📄 スカッド・HTML分析"):
+    preset_prompt = "添付したHTMLデータ（選手一覧やレポート）を読み込み、チームの強み・弱み、または獲得候補の比較分析を行ってください。"
+if col3.button("👤 個別選手査定"):
+    preset_prompt = "添付した選手のデータを査定し、現在の4-2-3-1における適性と獲得の是非をジャッジしてください。"
 
 st.markdown("---")
 
-# --- 画面UI ---
-uploaded_file = st.file_uploader("📸 画像（選手の能力値、スカウトレポート、戦術画面など）を添付", type=["jpg", "png", "jpeg"])
+# --- ファイルアップロード（画像＆HTML対応） ---
+uploaded_file = st.file_uploader("📸 画像 または 📄 HTMLファイル を添付", type=["jpg", "png", "jpeg", "html", "txt"])
 
-prompt = st.chat_input("アナリストへの指示を入力（例: この選手を査定して）") or preset_prompt
+# --- 過去の会話を表示 ---
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+# --- 入力処理 ---
+prompt = st.chat_input("アナリストへの指示や状況を入力...") or preset_prompt
 
 if prompt:
+    # ユーザーの入力を画面に表示＆保存
     st.chat_message("user").markdown(prompt)
+    st.session_state.messages.append({"role": "user", "content": prompt})
     
     with st.chat_message("assistant"):
         with st.spinner("データ分析中..."):
-            if uploaded_file is not None:
-                image = Image.open(uploaded_file)
-                response = model.generate_content([prompt, image])
-            else:
-                response = model.generate_content(prompt)
-            
-            st.markdown(response.text)
+            try:
+                content_to_send = [prompt]
+                
+                # ファイルが添付されている場合の処理
+                if uploaded_file is not None:
+                    file_ext = uploaded_file.name.split('.')[-1].lower()
+                    if file_ext in ['jpg', 'png', 'jpeg']:
+                        image = Image.open(uploaded_file)
+                        content_to_send.append(image)
+                    elif file_ext in ['html', 'txt']:
+                        file_content = uploaded_file.getvalue().decode("utf-8", errors="replace")
+                        content_to_send[0] = f"{prompt}\n\n【添付データ】\n{file_content}"
+                
+                # Geminiに送信（過去の履歴も踏まえて回答される）
+                response = st.session_state.chat_session.send_message(content_to_send)
+                st.markdown(response.text)
+                
+                # アナリストの回答を保存
+                st.session_state.messages.append({"role": "assistant", "content": response.text})
+            except Exception as e:
+                st.error(f"エラーが発生しました: {e}")
