@@ -28,7 +28,6 @@ if not api_key:
     st.warning("👈 左側のメニューにAPIキーを入力するとアナリストが起動します。")
     st.stop()
 
-# 空白スペースなどが混じっていた場合のエラーを防ぐ
 genai.configure(api_key=api_key.strip())
 
 # --- アナリストの設定 ---
@@ -44,28 +43,9 @@ system_instruction = """
 - 無駄な挨拶は省き、すぐに本題に入る。
 """
 
-# 💡 究極のエラー回避：お持ちのAPIキーで「確実に使えるモデル」を自動検索
-available_model_name = "gemini-1.5-flash" # 万が一検索できなかった時の初期値
-try:
-    # 使えるモデルのリストをGoogleから直接取得
-    models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-    
-    # 優先順位をつけて、使えるものを選択
-    if "models/gemini-1.5-pro" in models:
-        available_model_name = "gemini-1.5-pro"
-    elif "models/gemini-1.5-flash" in models:
-        available_model_name = "gemini-1.5-flash"
-    elif "models/gemini-1.5-flash-latest" in models:
-        available_model_name = "gemini-1.5-flash-latest"
-    elif "models/gemini-pro" in models:
-        available_model_name = "gemini-pro"
-    elif len(models) > 0:
-        available_model_name = models[0] # リストの最初にある確実なものを強制選択
-except Exception:
-    pass
-
+# 💡 修正箇所：エラーの指示通り、最新のモデルを直接指定
 model = genai.GenerativeModel(
-    model_name=available_model_name,
+    model_name="gemini-3.6-flash",
     system_instruction=system_instruction
 )
 
@@ -104,8 +84,7 @@ if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
     
     with st.chat_message("assistant"):
-        # どのモデルが選ばれたか画面に小さく表示します
-        with st.spinner(f"データ分析中... [{available_model_name}]"):
+        with st.spinner("データ分析中..."):
             try:
                 content_to_send = [prompt]
                 
