@@ -28,7 +28,8 @@ if not api_key:
     st.warning("👈 左側のメニューにAPIキーを入力するとアナリストが起動します。")
     st.stop()
 
-genai.configure(api_key=api_key)
+# 空白スペースなどが混じっていた場合のエラーを防ぐ
+genai.configure(api_key=api_key.strip())
 
 # --- アナリストの設定 ---
 system_instruction = """
@@ -38,16 +39,34 @@ system_instruction = """
 
 # トーン＆ペルソナ
 - プロフェッショナルかつ監督の良き相棒。
-- 指示待ちではなく「次の冬の移籍に向けて、どのポジションのリストアップを開始しますか？」「現在の順位を踏まえると、次の試合は勝ち点3が必須です」など、今後の展開を見据えた提案を交える.
-- HTML形式のデータ（選手一覧やスカウトレポート）が送られた場合は、表データとして読み解き、比較分析を行うこと.
-- 無駄な挨拶は省き、すぐに本題に入る.
+- 指示待ちではなく「次の冬の移籍に向けて、どのポジションのリストアップを開始しますか？」「現在の順位を踏まえると、次の試合は勝ち点3が必須です」など、今後の展開を見据えた提案を交える。
+- HTML形式のデータ（選手一覧やスカウトレポート）が送られた場合は、表データとして読み解き、比較分析を行うこと。
+- 無駄な挨拶は省き、すぐに本題に入る。
 """
 
-# 💡修正箇所：確実かつ高速に動く「gemini-1.5-flash」に変更
+# 💡 究極のエラー回避：お持ちのAPIキーで「確実に使えるモデル」を自動検索
+available_model_name = "gemini-1.5-flash" # 万が一検索できなかった時の初期値
+try:
+    # 使えるモデルのリストをGoogleから直接取得
+    models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+    
+    # 優先順位をつけて、使えるものを選択
+    if "models/gemini-1.5-pro" in models:
+        available_model_name = "gemini-1.5-pro"
+    elif "models/gemini-1.5-flash" in models:
+        available_model_name = "gemini-1.5-flash"
+    elif "models/gemini-1.5-flash-latest" in models:
+        available_model_name = "gemini-1.5-flash-latest"
+    elif "models/gemini-pro" in models:
+        available_model_name = "gemini-pro"
+    elif len(models) > 0:
+        available_model_name = models[0] # リストの最初にある確実なものを強制選択
+except Exception:
+    pass
+
 model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash",
-    system_instruction=system_instruction,
-    generation_config={"temperature": 0.4}
+    model_name=available_model_name,
+    system_instruction=system_instruction
 )
 
 # --- 会話履歴（メモリ）の初期化 ---
@@ -81,16 +100,15 @@ for msg in st.session_state.messages:
 prompt = st.chat_input("アナリストへの指示や状況を入力...") or preset_prompt
 
 if prompt:
-    # ユーザーの入力を画面に表示＆保存
     st.chat_message("user").markdown(prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
     
     with st.chat_message("assistant"):
-        with st.spinner("データ分析中..."):
+        # どのモデルが選ばれたか画面に小さく表示します
+        with st.spinner(f"データ分析中... [{available_model_name}]"):
             try:
                 content_to_send = [prompt]
                 
-                # ファイルが添付されている場合の処理
                 if uploaded_file is not None:
                     file_ext = uploaded_file.name.split('.')[-1].lower()
                     if file_ext in ['jpg', 'png', 'jpeg']:
@@ -100,11 +118,8 @@ if prompt:
                         file_content = uploaded_file.getvalue().decode("utf-8", errors="replace")
                         content_to_send[0] = f"{prompt}\n\n【添付データ】\n{file_content}"
                 
-                # Geminiに送信（過去の履歴も踏まえて回答される）
                 response = st.session_state.chat_session.send_message(content_to_send)
                 st.markdown(response.text)
-                
-                # アナリストの回答を保存
                 st.session_state.messages.append({"role": "assistant", "content": response.text})
             except Exception as e:
                 st.error(f"エラーが発生しました: {e}")
