@@ -43,11 +43,10 @@ system_instruction = """
 - 無駄な挨拶は省き、すぐに本題に入る。
 """
 
-# エラー修正箇所：gemini-1.5-pro-latest を指定
+# 💡修正箇所：最高性能の「gemini-1.5-pro」に指定
 model = genai.GenerativeModel(
-    model_name="gemini-1.5-pro-latest",
-    system_instruction=system_instruction,
-    generation_config={"temperature": 0.4}
+    model_name="gemini-1.5-pro",
+    system_instruction=system_instruction
 )
 
 # --- 会話履歴（メモリ）の初期化 ---
@@ -81,7 +80,6 @@ for msg in st.session_state.messages:
 prompt = st.chat_input("アナリストへの指示や状況を入力...") or preset_prompt
 
 if prompt:
-    # ユーザーの入力を画面に表示＆保存
     st.chat_message("user").markdown(prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
     
@@ -90,7 +88,6 @@ if prompt:
             try:
                 content_to_send = [prompt]
                 
-                # ファイルが添付されている場合の処理
                 if uploaded_file is not None:
                     file_ext = uploaded_file.name.split('.')[-1].lower()
                     if file_ext in ['jpg', 'png', 'jpeg']:
@@ -100,11 +97,8 @@ if prompt:
                         file_content = uploaded_file.getvalue().decode("utf-8", errors="replace")
                         content_to_send[0] = f"{prompt}\n\n【添付データ】\n{file_content}"
                 
-                # Geminiに送信（過去の履歴も踏まえて回答される）
                 response = st.session_state.chat_session.send_message(content_to_send)
                 st.markdown(response.text)
-                
-                # アナリストの回答を保存
                 st.session_state.messages.append({"role": "assistant", "content": response.text})
             except Exception as e:
                 st.error(f"エラーが発生しました: {e}")
